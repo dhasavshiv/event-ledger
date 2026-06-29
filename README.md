@@ -21,9 +21,17 @@ Manages account state — balances and transaction history — in its own indepe
 
 ## Prerequisites
 
-- Java 21
+- **Java 21** (required — the build will fail with a clear message if a different version is used)
 - Maven 3.9+
 - Docker & Docker Compose (for Docker-based startup)
+
+> **Important:** This project requires exactly Java 21. If your default `java` points to a different version, set `JAVA_HOME` before running Maven:
+> ```bash
+> # macOS (Homebrew)
+> export JAVA_HOME=$(/usr/libexec/java_home -v 21)
+> # Then run tests or start the service
+> mvn test
+> ```
 
 ## How to Start
 
