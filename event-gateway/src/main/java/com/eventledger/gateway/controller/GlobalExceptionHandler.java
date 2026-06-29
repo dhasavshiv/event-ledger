@@ -37,7 +37,8 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(EventService.EventNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleEventNotFound(EventService.EventNotFoundException ex,\n                                                             HttpServletRequest request) {
+    public ResponseEntity<ErrorResponse> handleEventNotFound(EventService.EventNotFoundException ex,
+                                                             HttpServletRequest request) {
         ErrorResponse response = buildErrorResponse(HttpStatus.NOT_FOUND,
                 ex.getMessage(), "Not Found", request, null);
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
