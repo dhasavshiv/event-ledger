@@ -46,12 +46,12 @@ public class EventService {
                 request.getEventId(), request.getAccountId(), request.getType(),
                 request.getAmount(), traceId);
 
-        // Idempotency check
+        // Idempotency check — return existing event flagged as duplicate
         Optional<Event> existing = eventRepository.findById(request.getEventId());
         if (existing.isPresent()) {
             duplicateEventsReceived.incrementAndGet();
             log.info("Duplicate event detected, returning original: eventId={}", request.getEventId());
-            return toResponse(existing.get());
+            throw new DuplicateEventException(toResponse(existing.get()));
         }
 
         // Save event to gateway DB first
@@ -130,5 +130,14 @@ public class EventService {
 
     public static class EventNotFoundException extends RuntimeException {
         public EventNotFoundException(String message) { super(message); }
+    }
+
+    public static class DuplicateEventException extends RuntimeException {
+        private final EventResponse existing;
+        public DuplicateEventException(EventResponse existing) {
+            super("Duplicate event: " + existing.getEventId());
+            this.existing = existing;
+        }
+        public EventResponse getExisting() { return existing; }
     }
 }

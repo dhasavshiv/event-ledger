@@ -3,6 +3,7 @@ package com.eventledger.gateway.controller;
 import com.eventledger.gateway.client.AccountServiceClient;
 import com.eventledger.gateway.dto.EventRequest;
 import com.eventledger.gateway.dto.EventResponse;
+import com.eventledger.gateway.repository.EventRepository;
 import com.eventledger.gateway.service.EventService;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
@@ -25,10 +26,12 @@ public class EventController {
     private static final Logger log = LoggerFactory.getLogger(EventController.class);
     private final EventService eventService;
     private final AccountServiceClient accountServiceClient;
+    private final EventRepository eventRepository;
 
-    public EventController(EventService eventService, AccountServiceClient accountServiceClient) {
+    public EventController(EventService eventService, AccountServiceClient accountServiceClient, EventRepository eventRepository) {
         this.eventService = eventService;
         this.accountServiceClient = accountServiceClient;
+        this.eventRepository = eventRepository;
     }
 
     @PostMapping("/events")
@@ -41,6 +44,11 @@ public class EventController {
             return ResponseEntity.status(HttpStatus.CREATED)
                     .header("X-Trace-Id", traceId)
                     .body(response);
+        } catch (EventService.DuplicateEventException e) {
+            // Duplicate: return original event with 200 (not 201 — nothing was created)
+            return ResponseEntity.ok()
+                    .header("X-Trace-Id", traceId)
+                    .body(e.getExisting());
         } finally {
             MDC.clear();
         }
@@ -78,10 +86,20 @@ public class EventController {
 
     @GetMapping("/health")
     public ResponseEntity<?> health() {
-        return ResponseEntity.ok(Map.of(
-                "status", "UP",
-                "service", "event-gateway"
-        ));
+        try {
+            eventRepository.count();
+            return ResponseEntity.ok(Map.of(
+                    "status", "UP",
+                    "service", "event-gateway",
+                    "database", "UP"
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of(
+                    "status", "DOWN",
+                    "service", "event-gateway",
+                    "database", "DOWN"
+            ));
+        }
     }
 
     @GetMapping("/accounts/{accountId}/balance")

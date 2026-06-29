@@ -2,6 +2,7 @@ package com.eventledger.account.controller;
 
 import com.eventledger.account.dto.AccountResponse;
 import com.eventledger.account.dto.TransactionRequest;
+import com.eventledger.account.repository.AccountRepository;
 import com.eventledger.account.service.AccountService;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
@@ -22,9 +23,11 @@ public class AccountController {
 
     private static final Logger log = LoggerFactory.getLogger(AccountController.class);
     private final AccountService accountService;
+    private final AccountRepository accountRepository;
 
-    public AccountController(AccountService accountService) {
+    public AccountController(AccountService accountService, AccountRepository accountRepository) {
         this.accountService = accountService;
+        this.accountRepository = accountRepository;
     }
 
     @PostMapping("/accounts/{accountId}/transactions")
@@ -80,10 +83,20 @@ public class AccountController {
 
     @GetMapping("/health")
     public ResponseEntity<?> health() {
-        return ResponseEntity.ok(Map.of(
-                "status", "UP",
-                "service", "account-service"
-        ));
+        try {
+            accountRepository.count();
+            return ResponseEntity.ok(Map.of(
+                    "status", "UP",
+                    "service", "account-service",
+                    "database", "UP"
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of(
+                    "status", "DOWN",
+                    "service", "account-service",
+                    "database", "DOWN"
+            ));
+        }
     }
 
 }

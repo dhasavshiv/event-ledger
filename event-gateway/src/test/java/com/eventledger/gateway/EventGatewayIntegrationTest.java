@@ -89,11 +89,11 @@ class EventGatewayIntegrationTest {
                         .content(json))
                 .andExpect(status().isCreated());
 
-        // Second submission - same eventId, must return 201 with same data
+        // Second submission - same eventId, must return 200 (not 201 — nothing was created)
         mockMvc.perform(post("/events")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json))
-                .andExpect(status().isCreated())
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.eventId").value("evt-dup-001"));
 
         // Account service must only have been called ONCE
