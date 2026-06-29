@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -23,9 +24,11 @@ public class EventController {
 
     private static final Logger log = LoggerFactory.getLogger(EventController.class);
     private final EventService eventService;
+    private final AccountServiceClient accountServiceClient;
 
-    public EventController(EventService eventService) {
+    public EventController(EventService eventService, AccountServiceClient accountServiceClient) {
         this.eventService = eventService;
+        this.accountServiceClient = accountServiceClient;
     }
 
     @PostMapping("/events")
@@ -79,6 +82,29 @@ public class EventController {
                 "status", "UP",
                 "service", "event-gateway"
         ));
+    }
+
+    @GetMapping("/accounts/{accountId}/balance")
+    public ResponseEntity<?> getBalance(@PathVariable String accountId,
+                                         @RequestHeader(value = "X-Trace-Id", required = false) String incomingTraceId) {
+        String traceId = incomingTraceId != null ? incomingTraceId : UUID.randomUUID().toString();
+        MDC.put("traceId", traceId);
+        try {
+            BigDecimal balance = accountServiceClient.getBalance(accountId);
+            return ResponseEntity.ok()
+                    .header("X-Trace-Id", traceId)
+                    .body(Map.of("accountId", accountId, "balance", balance));
+        } catch (AccountServiceClient.AccountServiceUnavailableException e) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .header("X-Trace-Id", traceId)
+                    .body(Map.of("error", "Account service is unreachable. Balance unavailable."));
+        } catch (AccountServiceClient.AccountServiceException e) {
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                    .header("X-Trace-Id", traceId)
+                    .body(Map.of("error", e.getMessage()));
+        } finally {
+            MDC.clear();
+        }
     }
 
     @GetMapping("/metrics")

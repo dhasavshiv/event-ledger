@@ -8,6 +8,7 @@ import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -75,6 +76,43 @@ public class AccountServiceClient {
             log.error("Failed to call account service: {}", e.getMessage());
             throw new AccountServiceException("Account service unavailable: " + e.getMessage(), e);
         }
+    }
+
+    @CircuitBreaker(name = "accountService", fallbackMethod = "getBalanceFallback")
+    public BigDecimal getBalance(String accountId) {
+        String traceId = MDC.get("traceId");
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(accountServiceBaseUrl + "/accounts/" + accountId + "/balance"))
+                    .header(TRACE_HEADER, traceId != null ? traceId : "unknown")
+                    .timeout(Duration.ofSeconds(3))
+                    .GET()
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() == 404) {
+                throw new AccountServiceException("Account not found: " + accountId);
+            }
+            if (response.statusCode() >= 400) {
+                throw new AccountServiceException("Account service error: " + response.statusCode());
+            }
+
+            JsonNode node = objectMapper.readTree(response.body());
+            log.info("Balance fetched: accountId={} traceId={}", accountId, traceId);
+            return node.get("balance").decimalValue();
+
+        } catch (AccountServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Failed to fetch balance from account service: {}", e.getMessage());
+            throw new AccountServiceException("Account service unavailable: " + e.getMessage(), e);
+        }
+    }
+
+    public BigDecimal getBalanceFallback(String accountId, Throwable t) {
+        log.warn("Circuit breaker open fetching balance. accountId={} cause={}", accountId, t.getMessage());
+        throw new AccountServiceUnavailableException("Account service is currently unavailable. Please try again later.");
     }
 
     public void applyTransactionFallback(String accountId, String eventId, String type,

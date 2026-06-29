@@ -20,6 +20,8 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Map;
 
+import java.math.BigDecimal;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -234,6 +236,28 @@ class EventGatewayIntegrationTest {
         String traceId = result.getResponse().getHeader("X-Trace-Id");
         assertNotNull(traceId, "Trace ID should be auto-generated");
         assertFalse(traceId.isBlank());
+    }
+
+    // --- Balance Proxy ---
+
+    @Test
+    void testGetBalance_Success() throws Exception {
+        when(accountServiceClient.getBalance("acct-bal")).thenReturn(BigDecimal.valueOf(250.00));
+
+        mockMvc.perform(get("/accounts/acct-bal/balance"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accountId").value("acct-bal"))
+                .andExpect(jsonPath("$.balance").value(250.00));
+    }
+
+    @Test
+    void testGetBalance_AccountServiceDown_Returns503() throws Exception {
+        when(accountServiceClient.getBalance("acct-down"))
+                .thenThrow(new AccountServiceClient.AccountServiceUnavailableException("Circuit breaker open"));
+
+        mockMvc.perform(get("/accounts/acct-down/balance"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.error").value("Account service is unreachable. Balance unavailable."));
     }
 
     // --- Health & Metrics ---
